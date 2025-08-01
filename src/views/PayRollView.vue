@@ -26,7 +26,7 @@
                         <td>{{ employee.name }}</td>
                         <td>{{ employee.position }}</td>
                         <td>{{ employee.department }}</td>
-                        <td>R{{ employee.salary.toFixed(2) }}</td>
+                        <td>R{{ Number(employee.salary || 0).toFixed(2) }}</td>
                         <td>
                             <button @click="viewPayslip(employee)" class="action-btn">View Payslip</button>
                         </td>
@@ -42,7 +42,7 @@
 
 <script>
 import PayrollSlip from '@/components/PayrollSlip.vue'
-import employeeData from '@/assets/employee_info.json'
+import axios from 'axios'
 
 export default {
     components: {
@@ -50,27 +50,43 @@ export default {
     },
     data() {
         return {
-            employees: employeeData.employeeInformation,
+            employees: [], // Will be joined employee+payroll data
+            allEmployees: [], // Raw employees from backend
+            payrolls: [], // Raw payrolls from backend
             searchQuery: '',
             selectedEmployee: null,
             currentPeriod: ''
         }
     },
-    created() {
+    async created() {
         this.currentPeriod = this.getCurrentPeriod()
-    },
-    computed: {
-        filteredEmployees() {
-            if (!this.searchQuery) return this.employees
-            const query = this.searchQuery.toLowerCase()
-            return this.employees.filter(emp =>
-                emp.name.toLowerCase().includes(query) ||
-                emp.employeeId.toString().includes(query) ||
-                emp.department.toLowerCase().includes(query)
-            )
-        }
+        await this.fetchData()
     },
     methods: {
+        async fetchData() {
+            try {
+                const [empRes, payrollRes] = await Promise.all([
+                    axios.get('http://localhost:5000/employee'),
+                    axios.get('http://localhost:5000/payroll')
+                ])
+                this.allEmployees = empRes.data
+                this.payrolls = payrollRes.data
+                console.log('All Employees:', this.allEmployees)
+                console.log('Payrolls:', this.payrolls)
+                // Join employees with payroll info (if any)
+                this.employees = this.allEmployees.map(emp => {
+                    const payroll = this.payrolls.find(p => p.employeeId === emp.id)
+                    return {
+                        ...emp,
+                        salary: payroll && payroll.base_salary ? payroll.base_salary : 0,
+                        payroll: payroll || null
+                    }
+                })
+                console.log('Joined Employees:', this.employees)
+            } catch (err) {
+                console.error('Error fetching payroll or employee data:', err)
+            }
+        },
         getCurrentPeriod() {
             const now = new Date()
             return `${now.toLocaleString('default', { month: 'long' })} ${now.getFullYear()}`
@@ -84,6 +100,17 @@ export default {
         },
         filterPayroll() {
             // Handled by computed property
+        }
+    },
+    computed: {
+        filteredEmployees() {
+            if (!this.searchQuery) return this.employees
+            const query = this.searchQuery.toLowerCase()
+            return this.employees.filter(emp =>
+                emp.name.toLowerCase().includes(query) ||
+                (emp.employeeId ? emp.employeeId.toString().includes(query) : false) ||
+                emp.department.toLowerCase().includes(query)
+            )
         }
     }
 }

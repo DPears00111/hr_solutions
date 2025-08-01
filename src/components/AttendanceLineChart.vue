@@ -11,46 +11,84 @@ Chart.register(LineController, LineElement, PointElement, LinearScale, Title, Ca
 
 export default {
   props: {
-    monthlyAttendance: {
+    weeklyAttendance: {
       type: Array,
       required: true
     }
   },
   mounted() {
-    const ctx = this.$refs.lineChart.getContext('2d')
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: this.monthlyAttendance.map(item => item.month),
-        datasets: [
-          {
-            label: 'Present',
-            data: this.monthlyAttendance.map(item => item.present),
-            borderColor: '#599bca',
-            backgroundColor: 'rgba(89,155,202,0.2)',
-            fill: false,
-            tension: 0.3
-          },
-          {
-            label: 'Absent',
-            data: this.monthlyAttendance.map(item => item.absent),
-            borderColor: '#eb3b5a',
-            backgroundColor: 'rgba(235,59,90,0.2)',
-            fill: false,
-            tension: 0.3
-          }
-        ]
+    this.renderChart();
+  },
+  watch: {
+    weeklyAttendance: {
+      handler() {
+        this.renderChart();
       },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { display: true, position: 'bottom' }
-        },
-        scales: {
-          y: { beginAtZero: true }
-        }
+      deep: true
+    }
+  },
+  methods: {
+    renderChart() {
+      if (this.chartInstance) {
+        this.chartInstance.destroy();
       }
-    })
+      
+      const ctx = this.$refs.lineChart.getContext('2d');
+      this.chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: this.weeklyAttendance.map(item => item.week),
+          datasets: [
+            {
+              label: 'Present',
+              data: this.weeklyAttendance.map(item => item.present),
+              borderColor: '#599bca',
+              backgroundColor: 'rgba(89,155,202,0.2)',
+              fill: false,
+              tension: 0.3
+            },
+            {
+              label: 'Absent',
+              data: this.weeklyAttendance.map(item => item.absent),
+              borderColor: '#eb3b5a',
+              backgroundColor: 'rgba(235,59,90,0.2)',
+              fill: false,
+              tension: 0.3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: true, position: 'bottom' },
+            title: {
+              display: true,
+              text: 'Weekly Attendance Overview'
+            }
+          },
+          scales: {
+            y: { 
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Number of Employees'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Week Number'
+              }
+            }
+          }
+        }
+      });
+    }
+  },
+  beforeDestroy() {
+    if (this.chartInstance) {
+      this.chartInstance.destroy();
+    }
   }
 }
 </script>

@@ -2,11 +2,9 @@
     <div class="payroll-view">
         <div class="header">
             <h1>Dashboard</h1>
-            <div class="header-actions">
-                <input type="text" placeholder="Search" v-model="searchQuery" @input="filterPayroll">
-            </div>
+
         </div>
-  </div>
+    </div>
     <div>
         <h2>OVERVIEW</h2>
         <hr>
@@ -20,11 +18,18 @@
                 <div class="card-bottom">
                     <h4>{{ this[card.value] }}</h4>
                 </div>
+                <div v-if="card.value === 'totalEmployees' && employeeInfo.length" class="employee-list">
+                    <ul>
+                        <li v-for="emp in employeeInfo" :key="emp.employeeId || emp.id">
+                            {{ emp.name }}<span v-if="emp.position"> - {{ emp.position }}</span>
+                        </li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
     <div class="line-chart-container animate__animated animate__fadeIn">
-        <AttendanceLineChart :monthlyAttendance="monthlyAttendance" />
+        <AttendanceLineChart :weeklyAttendance="weeklyAttendance" />
     </div>
     <div class="Cal animate__animated animate__fadeIn">
         <h3 class="cal-title">Calendar</h3>
@@ -35,8 +40,7 @@
 </template>
 
 <script>
-import AttendanceData from '@/assets/attendance.json'
-import employeeInformation from '@/assets/employee_info.json'
+import axios from 'axios';
 import AttendanceLineChart from '@/components/AttendanceLineChart.vue'
 import LeaveCalendar from '@/components/LeaveCalendar.vue'
 import { mapGetters } from 'vuex';
@@ -45,115 +49,126 @@ export default {
     components: { AttendanceLineChart, LeaveCalendar },
     data() {
         return {
-            attendanceData: AttendanceData,
-            employeeInfo: employeeInformation,
+            searchQuery: '',
+            attendanceData: [],
+            employeeInfo: [],
             cardData: [
                 { title: 'Total Employees', value: 'totalEmployees' },
                 { title: 'Present', value: 'totalPresent' },
                 { title: 'Absent', value: 'totalAbsent' },
                 { title: 'Approved Leave', value: 'totalApproved' },
                 { title: 'Denied Leave', value: 'totalDenied' }
-            ]
+            ],
+            leaveRequests: []
         }
+    },
+
+    async mounted() {
+        await this.fetchAttendanceData();
+        await this.fetchEmployeeInfo();
+        await this.fetchLeaveRequests();
+    },
+
+    methods: {
+        getWeekNumber(date) {
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+            const week1 = new Date(d.getFullYear(), 0, 4);
+            return 1 + Math.round(((d - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+        },
+        async fetchAttendanceData() {
+            try {
+                const response = await axios.get('http://localhost:5000/attendance');
+                this.attendanceData = response.data;
+            } catch (error) {
+                console.error('Failed to fetch attendance data:', error);
+            }
+        },
+        async fetchEmployeeInfo() {
+            try {
+                const response = await axios.get('http://localhost:5000/employee');
+                this.employeeInfo = response.data;
+            } catch (error) {
+                console.error('Failed to fetch employee info:', error);
+            }
+        },
+        async fetchLeaveRequests() {
+            try {
+                const response = await axios.get('http://localhost:5000/timeOff');
+                this.leaveRequests = response.data;
+            } catch (error) {
+                console.error('Failed to fetch leave requests:', error);
+            }
+        },
     },
 
     computed: {
         ...mapGetters(['getLeaveRequests', 'getEmployees']),
         totalEmployees() {
-        
-            return this.getEmployees.length ? this.getEmployees.length : this.attendanceData.attendanceAndLeave.length;
+            return this.employeeInfo.length || 0;
         },
         totalPresent() {
-            const todayObj = new Date();
-            const today =
-                todayObj.getFullYear() + '-' +
-                String(todayObj.getMonth() + 1).padStart(2, '0') + '-' +
-                String(todayObj.getDate()).padStart(2, '0');
-            return this.attendanceData.attendanceAndLeave.filter(emp =>
-                emp.attendance.some(a => a.date === today && a.status === 'Present')
-            ).length
+            return this.attendanceData.filter(a => a.status === 'Present').length;
         },
         totalAbsent() {
-            const todayObj = new Date();
-            const today =
-                todayObj.getFullYear() + '-' +
-                String(todayObj.getMonth() + 1).padStart(2, '0') + '-' +
-                String(todayObj.getDate()).padStart(2, '0');
-            return this.attendanceData.attendanceAndLeave.filter(emp =>
-                emp.attendance.some(a => a.date === today && a.status === 'Absent')
-            ).length
+            return this.attendanceData.filter(a => a.status === 'Absent').length;
         },
         totalApproved() {
-            return this.attendanceData.attendanceAndLeave.reduce((count, emp) => {
-                return count + emp.leaveRequests.filter(req => req.status === 'Approved').length
-            }, 0)
+            return this.leaveRequests.filter(req => (req.status || '').toLowerCase() === 'approved').length;
         },
         totalDenied() {
-            return this.attendanceData.attendanceAndLeave.reduce((count, emp) => {
-                return count + emp.leaveRequests.filter(req => req.status === 'Denied').length
-            }, 0)
+            return this.leaveRequests.filter(req => (req.status || '').toLowerCase() === 'rejected').length;
         },
-        monthlyAttendance() {
-            const months = [
-                'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-            ]
-            const presentCounts = Array(12).fill(0)
-            const absentCounts = Array(12).fill(0)
-            this.attendanceData.attendanceAndLeave.forEach(emp => {
-                emp.attendance.forEach(a => {
-                    const date = new Date(a.date)
-                    if (!isNaN(date)) {
-                        const monthIdx = date.getMonth()
-                        if (a.status === 'Present') presentCounts[monthIdx] += 1
-                        if (a.status === 'Absent') absentCounts[monthIdx] += 1
+        weeklyAttendance() {
+            const weeks = [];
+            const currentDate = new Date();
+            const currentWeek = this.getWeekNumber(currentDate);
+            
+            for (let i = 3; i >= 0; i--) {
+                const weekNum = currentWeek - i;
+                weeks.push({
+                    week: `Week ${weekNum}`,
+                    present: 0,
+                    absent: 0
+                });
+            }
+
+            this.attendanceData.forEach(record => {
+                const date = new Date(record.date);
+                const weekNum = this.getWeekNumber(date);
+                const weekIndex = currentWeek - weekNum;
+                
+                if (weekIndex >= 0 && weekIndex < 4) {
+                    if (record.status === 'Present') {
+                        weeks[3 - weekIndex].present++;
+                    } else if (record.status === 'Absent') {
+                        weeks[3 - weekIndex].absent++;
                     }
-                })
-            })
-            return months.map((m, i) => ({
-                month: m,
-                present: presentCounts[i],
-                absent: absentCounts[i]
-            }))
-        },
-        approvedLeaveEvents() {
-            // Collect all approved leave events for the current month from both attendanceData and Vuex store
-            const events = [];
-            // From static attendanceData
-            this.attendanceData.attendanceAndLeave.forEach(emp => {
-                if (emp.leaveRequests && emp.leaveRequests.length) {
-                    emp.leaveRequests.forEach(req => {
-                        if (req.status === 'Approved') {
-                            const start = new Date(req.startDate);
-                            const end = new Date(req.endDate);
-                            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                                const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                                events.push({
-                                    date: dateStr,
-                                    name: emp.name,
-                                    employeeId: emp.employeeId
-                                });
-                            }
-                        }
-                    });
                 }
             });
-            // From Vuex leaveRequests (form submissions)
-            this.getLeaveRequests.forEach(req => {
-                if (req.status === 'Approved') {
-                    // Support both single-day and range (if available)
-                    const start = req.startDate ? new Date(req.startDate) : new Date(req.date);
-                    const end = req.date ? new Date(req.date) : start;
+
+            return weeks;
+        },
+        approvedLeaveEvents() {
+            const events = [];
+            
+            this.leaveRequests.forEach(req => {
+                if (req.status === 'approved') {
+                    const employee = this.employeeInfo.find(e => e.id === req.employeeId);
+                    const start = new Date(req.startDate);
+                    const end = new Date(req.endDate);
                     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
                         const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                         events.push({
                             date: dateStr,
-                            name: req.employeeName,
+                            name: employee ? employee.name : 'Unknown',
                             employeeId: req.employeeId
                         });
                     }
                 }
             });
+
             return events;
         },
     }

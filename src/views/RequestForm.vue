@@ -1,27 +1,38 @@
 <template>
   <div class="payroll-view">
-        <div class="header">
-            <h1>Leave Requests</h1>
-            <div class="header-actions">
-                <input type="text" placeholder="Search" v-model="searchQuery" @input="filterPayroll">
-            </div>
-        </div>
+    <div class="header">
+      <h1>Leave Requests</h1>
+      
+    </div>
   </div>
   <div class="form-container">
-    <h3 class="border border-dark-subtle mb-4 rounded bg-primary text-white">Leave Requests</h3>
+    <h3 class="border border-dark-subtle mb-4 rounded bg-primary text-white">Leave Request Form</h3>
     <div class="form mb-4">
       <form @submit.prevent="submitLeaveRequest">
         <div class="row mb-3">
-          <label for="employeeName" class="col-sm-2 col-form-label text-primary">Employee Name</label>
+          <label for="employeeId" class="col-sm-2 col-form-label text-primary">Employee ID</label>
           <div class="col-sm-10">
-            <input type="text" class="form-control" id="employeeName" v-model="leaveForm.employeeName" required>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="employeeId" 
+              v-model="leaveForm.employeeId" 
+              required
+              @change="fetchEmployeeDetails"
+            >
           </div>
         </div>
 
         <div class="row mb-3">
-          <label for="employeeId" class="col-sm-2 col-form-label text-primary">Employee ID</label>
+          <label for="employeeName" class="col-sm-2 col-form-label text-primary">Employee Name</label>
           <div class="col-sm-10">
-            <input type="text" class="form-control" id="employeeId" v-model="leaveForm.employeeId" required>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="employeeName" 
+              v-model="leaveForm.employeeName" 
+              readonly
+            >
           </div>
         </div>
 
@@ -40,25 +51,55 @@
         </div>
 
         <div class="row mb-3">
-          <label for="date" class="col-sm-2 col-form-label text-primary">Date</label>
+          <label for="startDate" class="col-sm-2 col-form-label text-primary">Start Date</label>
           <div class="col-sm-10">
-            <input type="date" class="form-control" id="date" v-model="leaveForm.date" required>
+            <input 
+              type="date" 
+              class="form-control" 
+              id="startDate" 
+              v-model="leaveForm.startDate" 
+              required
+              @change="updateEndDateIfEmpty"
+            >
           </div>
         </div>
 
-
+        <div class="row mb-3">
+          <label for="endDate" class="col-sm-2 col-form-label text-primary">End Date</label>
+          <div class="col-sm-10">
+            <input 
+              type="date" 
+              class="form-control" 
+              id="endDate" 
+              v-model="leaveForm.endDate" 
+              required
+              :min="leaveForm.startDate"
+            >
+          </div>
+        </div>
 
         <div class="row mb-3">
           <label for="reason" class="col-sm-2 col-form-label text-primary">Reason</label>
           <div class="col-sm-10">
-            <textarea class="form-control" id="reason" rows="3" v-model="leaveForm.reason" required></textarea>
+            <textarea 
+              class="form-control" 
+              id="reason" 
+              rows="3" 
+              v-model="leaveForm.reason" 
+              required
+            ></textarea>
           </div>
         </div>
 
         <div class="row mb-3">
           <div class="col-sm-10 offset-sm-2">
             <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="emergency" v-model="leaveForm.isEmergency">
+              <input 
+                class="form-check-input" 
+                type="checkbox" 
+                id="emergency" 
+                v-model="leaveForm.isEmergency"
+              >
               <label class="form-check-label" for="emergency">
                 Emergency Leave
               </label>
@@ -69,27 +110,42 @@
         <div class="row mb-3">
           <div class="col-sm-10 offset-sm-2">
             <button type="submit" class="btn btn-primary">Submit Request</button>
-            <button type="reset" class="btn btn-secondary ms-2">Reset Form</button>
+            <button type="reset" class="btn btn-secondary ms-2" @click="resetForm">Reset Form</button>
           </div>
         </div>
       </form>
     </div>
 
     <!-- Display the list of leave requests -->
-    <div class="leave-requests mt-5" v-if="leaveRequests.length > 0">
-      <h3 class="text-primary mb-4">Leave Requests</h3>
+    <div class="leave-requests mt-5" v-if="requests.length > 0">
+      <h3 class="text-primary mb-4">My Leave Requests</h3>
       <ul class="list-group">
-        <li class="list-group-item d-flex justify-content-between align-items-center"
-          v-for="(request, index) in leaveRequests" :key="index">
+        <li 
+          class="list-group-item d-flex justify-content-between align-items-center"
+          v-for="(request, index) in filteredRequests" 
+          :key="request.id"
+        >
           <div>
-            <strong>{{ request.employeeName }} (ID: {{ request.employeeId }})</strong><br>
-            <span class="text-muted">{{ request.leaveType }} Leave</span> |
-            {{ formatDate(request.startDate) }} to {{ formatDate(request.date) }}<br>
+            <strong>{{ request.employeeName }}</strong><br>
+            {{ formatDate(request.startDate) }} to {{ formatDate(request.endDate) }}<br>
             <em>{{ request.reason }}</em>
-            <span v-if="request.isEmergency" class="badge bg-danger ms-2">Emergency</span>
+            <span 
+              class="badge ms-2"
+              :class="{
+                'bg-warning': request.status === 'pending',
+                'bg-success': request.status === 'approved',
+                'bg-danger': request.status === 'rejected'
+              }"
+            >
+              {{ request.status }}
+            </span>
           </div>
-          <button class="btn btn-sm btn-outline-danger" @click="removeRequest(index)">
-            Remove
+          <button 
+            class="btn btn-sm btn-outline-danger" 
+            @click="removeRequest(request.id)"
+            v-if="request.status === 'pending'"
+          >
+            Cancel
           </button>
         </li>
       </ul>
@@ -98,85 +154,164 @@
 </template>
 
 <script>
-import { mapActions, mapGetters } from 'vuex';
+import axios from 'axios';
 
 export default {
   data() {
     return {
+      searchQuery: '',
       leaveForm: {
-        employeeName: '',
         employeeId: '',
+        employeeName: '',
         leaveType: '',
-        date: '',
+        startDate: '',
+        endDate: '',
         reason: '',
         isEmergency: false
-      }
+      },
+      requests: [],
+      employees: []
     };
   },
   computed: {
-    ...mapGetters(['getLeaveRequests']),
-    leaveRequests() {
-      return this.getLeaveRequests;
+    filteredRequests() {
+      if (!this.searchQuery) return this.requests;
+      const query = this.searchQuery.toLowerCase();
+      return this.requests.filter(request => 
+        request.employeeName.toLowerCase().includes(query) ||
+        request.reason.toLowerCase().includes(query) ||
+        request.status.toLowerCase().includes(query)
+      );
     }
   },
   methods: {
-    ...mapActions(['addLeaveRequest', 'loadLeaveRequests']),
-    submitLeaveRequest() {
-      const newRequest = {
-        ...this.leaveForm,
-        id: Date.now(),
-        status: 'Pending'
+    async fetchEmployeeDetails() {
+      if (!this.leaveForm.employeeId) return;
+      
+      try {
+        const response = await axios.get(`http://localhost:5000/employee/${this.leaveForm.employeeId}`);
+        this.leaveForm.employeeName = response.data.name;
+      } catch (error) {
+        console.error('Error fetching employee details:', error);
+        this.leaveForm.employeeName = '';
+        alert('Employee not found. Please check the ID.');
+      }
+    },
+    async fetchRequests() {
+      try {
+        const response = await axios.get('http://localhost:5000/timeOff');
+        this.requests = response.data.map(request => {
+          const employee = this.employees.find(e => e.id == request.employeeId);
+          return {
+            ...request,
+            employeeName: employee ? employee.name : 'Unknown'
+          };
+        });
+      } catch (error) {
+        console.error('Failed to fetch leave requests:', error);
+        alert('Failed to load leave requests.');
+      }
+    },
+    async fetchEmployees() {
+      try {
+        const response = await axios.get('http://localhost:5000/employee');
+        this.employees = response.data;
+      } catch (error) {
+        console.error('Failed to fetch employees:', error);
+      }
+    },
+    updateEndDateIfEmpty() {
+      if (this.leaveForm.startDate && !this.leaveForm.endDate) {
+        this.leaveForm.endDate = this.leaveForm.startDate;
+      }
+    },
+    async submitLeaveRequest() {
+      if (!this.leaveForm.employeeName) {
+        alert('Please enter a valid employee ID');
+        return;
+      }
+
+      const request = {
+        employeeId: this.leaveForm.employeeId,
+        startDate: this.leaveForm.startDate,
+        endDate: this.leaveForm.endDate,
+        reason: this.leaveForm.reason,
+        leaveType: this.leaveForm.leaveType,
+        isEmergency: this.leaveForm.isEmergency,
+        status: 'pending'
       };
-      this.addLeaveRequest(newRequest);
-      this.resetForm();
+
+      try {
+        await axios.post('http://localhost:5000/timeOff', request);
+        alert('Leave request submitted successfully!');
+        this.resetForm();
+        await this.fetchRequests();
+      } catch (error) {
+        console.error('Error submitting leave request:', error);
+        alert('Failed to submit leave request. Please try again.');
+      }
+    },
+    async removeRequest(requestId) {
+      if (!confirm('Are you sure you want to cancel this leave request?')) return;
+      
+      try {
+        await axios.delete(`http://localhost:5000/timeOff/${requestId}`);
+        await this.fetchRequests();
+        alert('Leave request cancelled successfully.');
+      } catch (error) {
+        console.error('Error cancelling leave request:', error);
+        alert('Failed to cancel leave request. Please try again.');
+      }
     },
     resetForm() {
       this.leaveForm = {
-        employeeName: '',
         employeeId: '',
+        employeeName: '',
         leaveType: '',
-        date: '',
+        startDate: '',
+        endDate: '',
         reason: '',
         isEmergency: false
       };
     },
     formatDate(dateStr) {
       if (!dateStr) return '';
-      const d = new Date(dateStr);
-      return d.toLocaleDateString();
-    },
-    removeRequest(index) {
-      this.$store.state.leaveRequests.splice(index, 1);
-      localStorage.setItem('leaveRequests', JSON.stringify(this.$store.state.leaveRequests));
+      const options = { year: 'numeric', month: 'short', day: 'numeric' };
+      return new Date(dateStr).toLocaleDateString(undefined, options);
     }
   },
-  mounted() {
-    this.loadLeaveRequests();
+  async mounted() {
+    await this.fetchEmployees();
+    await this.fetchRequests();
   }
 };
 </script>
 
 <style scoped>
 .payroll-view {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
 }
-h1{
+
+h1 {
   font-weight: bold;
 }
+
 .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
 }
+
 input[type="text"] {
-    padding: 8px 15px;
-    border: 1px solid #ddd;
-    border-radius: 20px;
-    min-width: 250px;
+  padding: 8px 15px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  min-width: 250px;
 }
+
 .form-container {
   max-width: 800px;
   margin: 0 auto;

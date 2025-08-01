@@ -16,22 +16,24 @@
         <div class="payment-details">
             <div class="earnings">
                 <h4>EARNINGS</h4>
-                <p>Basic Salary: R{{ currentEmployee.salary.toFixed(2) }}</p>
+                <p>Basic Salary: R{{ Number(currentEmployee.salary || 0).toFixed(2) }}</p>
             </div>
             <div class="deductions">
                 <h4>DEDUCTIONS</h4>
-                <p>Tax: R{{ (currentEmployee.salary * 0.15).toFixed(2) }}</p>
+                <p>Tax: R{{ (Number(currentEmployee.salary || 0) * 0.15).toFixed(2) }}</p>
             </div>
         </div>
 
         <div class="net-pay">
-            <h3>NET PAY: R{{ (currentEmployee.salary * 0.85).toFixed(2) }}</h3>
+            <h3>NET PAY: R{{ (Number(currentEmployee.salary || 0) * 0.85).toFixed(2) }}</h3>
         </div>
 
     </div>
     <div class="navigation">
-            <button @click="downloadPDF" class="download-btn">Download PDF</button>
-        </div>
+        <button @click="prevEmployee" class="nav-btn">Previous</button>
+        <button @click="downloadPDF" class="download-btn">Download PDF</button>
+        <button @click="nextEmployee" class="nav-btn">Next</button>
+    </div>
 </template>
 
 <script>
